@@ -6,8 +6,8 @@ from chromadb.config import Settings, DEFAULT_TENANT, DEFAULT_DATABASE
 import numpy as np
 
 # Define file paths
-csv_file_path = "D:/project/Dataset/combined_processed_dataset.csv"
-chroma_db_path = "D:/project/Chromadb"  # Directory for ChromaDB persistence
+csv_file_path = "D:/project/Food recommendation//Backend/Dataset/combined_processed_dataset.csv"
+chroma_db_path = "D:/project/Food recommendation//Backend/Chromadb"  # Directory for ChromaDB persistence
 
 # Load data from CSV
 data_df = pd.read_csv(csv_file_path)
