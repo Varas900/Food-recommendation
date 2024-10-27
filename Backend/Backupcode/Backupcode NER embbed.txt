@@ -1,0 +1,67 @@
+import os
+import glob
+import vaex
+import pandas as pd
+import dask.dataframe as dd
+from transformers import BertTokenizer, BertModel
+import torch
+MAX_ROWS_PER_SESSION = 100
+BATCH_SIZE = 20
+df = vaex.open('/content/drive/MyDrive/Data/recipes_data.csv')
+df = df[['title', 'ingredients', 'directions', 'NER']]
+df_pandas = df.to_pandas_df()
+def tokenize_text_batch(texts):
+    tokens_list = []
+    for i in range(0, len(texts), 32):
+        batch = texts[i:i + 32]
+        tokens = tokenizer(batch.tolist(), padding=True, truncation=True, return_tensors='pt')
+        tokens_list.append(tokens)
+    return tokens_list
+
+def get_bert_embeddings_batch(tokens_list):
+    embeddings_list = []
+    for tokens in tokens_list:
+        with torch.no_grad():
+            outputs = model(**tokens)
+        embeddings = outputs.last_hidden_state.mean(dim=1).numpy().tolist()
+        embeddings_list.extend(embeddings)
+    return embeddings_list
+
+def process_batch(text_series):
+    tokens = tokenize_text_batch(text_series)
+    embeddings = get_bert_embeddings_batch(tokens)
+    return embeddings
+def process_and_save_batches(df, output_dir):
+    os.makedirs(output_dir, exist_ok=True)
+    batches = [df[i:i + BATCH_SIZE] for i in range(0, len(df), BATCH_SIZE)]
+    
+    for idx, batch in enumerate(batches):
+        batch_filename = os.path.join(output_dir, f'processed_batch_{idx + 1}.csv')
+        if os.path.exists(batch_filename):
+            print(f'Skipping {batch_filename}, already processed.')
+            continue
+        
+        ddf_batch = dd.from_pandas(batch, npartitions=1)
+        # Only process the NER column
+        ddf_batch['processed_NER'] = ddf_batch['NER'].map_partitions(process_batch, meta=('processed_NER', 'object'))
+
+        # Retain only the original columns and the new processed_NER column
+        embeddings_df_batch = ddf_batch[['title', 'ingredients', 'directions', 'NER', 'processed_NER']]
+        embeddings_df_batch.to_csv(batch_filename, index=False)
+        print(f'Saved {batch_filename} with {len(embeddings_df_batch)} rows.')
+total_rows_to_process = min(MAX_ROWS_PER_SESSION, len(df_pandas))
+
+# Process only the required number of rows
+process_and_save_batches(df_pandas[:total_rows_to_process], '/content/drive/MyDrive/Dataset/processed_batches')
+#thêm số dòng đã xử lý vào file combined_procesed_dataset.csv
+def combine_csv_files(output_dir, output_file='/content/drive/MyDrive/Dataset/combined_processed_dataset.csv'):
+    all_files = glob.glob(os.path.join(output_dir, 'processed_batch_*.csv'))
+    
+    if not all_files:
+        print(f'No CSV files found in {output_dir}.')
+        return
+    
+    combined_df = pd.concat((pd.read_csv(f) for f in all_files), ignore_index=True)
+    combined_df.to_csv(output_file, index=False)
+    print(f'Combined all processed files into {output_file}')
+combine_csv_files('/content/drive/MyDrive/processed_batches')

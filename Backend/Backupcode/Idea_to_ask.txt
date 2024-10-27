@@ -1,0 +1,4 @@
+Use these features in those output file to guide a GPT-2 model in generating recipes.
+AND Post-process the generated recipes to ensure they are complete and coherent.
+I have 2 file preprocessed_train_dataset_with_embeddings.csv and preprocessed_test_dataset_with_embeddings.csv.
+How GPT-2 should use NER as keywords when take input from user. For example if I input :"I want to make chicken" it should take chicken as a keyword and then use it to generate a recipe
